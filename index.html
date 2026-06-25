@@ -491,10 +491,30 @@ const LOG_GAS_URL = 'https://script.google.com/macros/s/AKfycbysxK0dstH8fLOOoctq
       const deleteMeetingResultLog = (dayIdx, time, cId) => {
         if (confirm('작성된 상담 일지를 정말 삭제하시겠습니까?')) {
           const newEv = JSON.parse(JSON.stringify(eventData));
+          
+          // 🌟 구글 시트(일지) 연동 삭제 요청 추가
+          const dateOnly = newEv.config.dates[dayIdx] || getToday();
+          const bIdForLog = newEv.matches?.[dayIdx]?.[time]?.[cId];
+          const compObj = newEv.companies?.find(c => c.id === cId);
+          const buyerObj = newEv.buyers?.find(b => b.id === bIdForLog);
+          
+          fetch(LOG_GAS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                  action: 'delete',
+                  date: dateOnly,
+                  sessionTime: time,
+                  buyerName: buyerObj ? buyerObj.company : '알 수 없음',
+                  companyName: compObj ? compObj.name : '알 수 없음'
+              })
+          }).catch(err => console.error("일지 삭제 에러:", err));
+
           if (newEv.meetingResults?.[dayIdx]?.[time]?.[cId]) {
             delete newEv.meetingResults[dayIdx][time][cId];
           }
-          if (newEv.liveStatus?.[dayIdx]?.[time]?.[cId] === 'completed') {
+          // 제출됨(submitted) 상태도 같이 대기로 돌려놓기
+          if (newEv.liveStatus?.[dayIdx]?.[time]?.[cId] === 'completed' || newEv.liveStatus?.[dayIdx]?.[time]?.[cId] === 'submitted') {
             newEv.liveStatus[dayIdx][time][cId] = 'waiting';
           }
           newEv.lastModified = Date.now();
