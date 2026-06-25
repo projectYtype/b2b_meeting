@@ -2963,8 +2963,8 @@ const handleDeleteCompany = (companyId) => {
                                 return Object.entries(timeMatches).map(([cId, bId]) => {
                                   let comp = companyMap[cId];
                                   let buyer = buyerMap[bId];
-                                  if (!comp) comp = { name: currentEvent.companies?.find(c=>c.id===cId)?.name || '알 수 없음' };
-                                  if (!buyer) buyer = { company: currentEvent.buyers?.find(b=>b.id===bId)?.company || '현장방문' };
+                                  if (!comp) comp = { name: eventData.companies?.find(c=>c.id===cId)?.name || '알 수 없음' };
+if (!buyer) buyer = { company: eventData.buyers?.find(b=>b.id===bId)?.company || '현장방문' };
 
                                   const status = liveStatus[currentDayIdx]?.[time]?.[cId] || 'waiting';
                                   const hasLog = meetingResults[currentDayIdx]?.[time]?.[cId] != null;
