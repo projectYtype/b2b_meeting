@@ -488,6 +488,7 @@ const LOG_GAS_URL = 'https://script.google.com/macros/s/AKfycbysxK0dstH8fLOOoctq
     function MasterApp({ eventData, saveEventData, initialTab, onBack, onHome, onStatusClick, setSelectedMenu }) {
       const [interpreterSubTab, setInterpreterSubTab] = useState('input'); 
       
+      // 🌟 [수정됨] 일지 삭제 시 구글 시트에도 삭제 요청 전송
       const deleteMeetingResultLog = (dayIdx, time, cId) => {
         if (confirm('작성된 상담 일지를 정말 삭제하시겠습니까?')) {
           const newEv = JSON.parse(JSON.stringify(eventData));
@@ -500,7 +501,76 @@ const LOG_GAS_URL = 'https://script.google.com/macros/s/AKfycbysxK0dstH8fLOOoctq
           newEv.lastModified = Date.now();
           saveEventData(newEv);
           alert('상담 일지가 성공적으로 삭제되었습니다.');
+
+          // 👇 구글 시트(상담일지 대장)로 삭제 Action 전송 추가
+          const bId = matches[dayIdx]?.[time]?.[cId];
+          const buyerName = buyerMap[bId]?.name || buyerMap[bId]?.company || '';
+          const companyName = companyMap[cId]?.name || '';
+
+          const payload = {
+            action: 'delete',
+            buyerName: buyerName,
+            companyName: companyName,
+            meetingType: time.includes('현장') ? '현장 미팅' : '사전 미팅',
+            sessionTime: time
+          };
+
+          fetch(LOG_GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          }).catch(console.error);
         }
+      };
+
+
+      // 🌟 [수정됨] 일지 저장 시 구글 시트(LOG_GAS_URL)로 데이터 전송
+      const saveMeetingResult = () => {
+        const { dayIdx, time, cId, data } = resultModal;
+        const newEv = JSON.parse(JSON.stringify(eventData));
+        
+        // 1. 웹페이지 자체 DB에 저장 (기존 로직)
+        if (!newEv.meetingResults) newEv.meetingResults = {};
+        if (!newEv.meetingResults[dayIdx]) newEv.meetingResults[dayIdx] = {};
+        if (!newEv.meetingResults[dayIdx][time]) newEv.meetingResults[dayIdx][time] = {};
+        newEv.meetingResults[dayIdx][time][cId] = data;
+
+        if (!newEv.liveStatus) newEv.liveStatus = {};
+        if (!newEv.liveStatus[dayIdx]) newEv.liveStatus[dayIdx] = {};
+        if (!newEv.liveStatus[dayIdx][time]) newEv.liveStatus[dayIdx][time] = {};
+        newEv.liveStatus[dayIdx][time][cId] = 'completed';
+
+        newEv.lastModified = Date.now();
+        saveEventData(newEv);
+        setResultModal({ isOpen: false, dayIdx: 0, time: '', cId: '', data: {} });
+        alert("일지가 저장되었으며, 미팅 상태가 '완료'로 자동 변경되었습니다!");
+
+        // 2. 👇 구글 시트(상담일지 대장)로 데이터 전송 추가
+        const isWalkin = time.includes('현장');
+        const bId = matches[dayIdx]?.[time]?.[cId];
+        
+        // 이름과 기업명 매핑
+        const buyerName = buyerMap[bId]?.name || buyerMap[bId]?.company || '알 수 없음';
+        const companyName = companyMap[cId]?.name || '알 수 없음';
+        const eventNameStr = eventData?.eventName || '알 수 없음';
+
+        const payload = {
+          action: 'save',
+          eventName: eventNameStr, // 🌟 P열(미팅명)로 들어갈 행사명 데이터
+          meetingType: isWalkin ? '현장 미팅' : '사전 미팅',
+          date: config.dates[dayIdx] || '',
+          sessionTime: time,
+          buyerName: buyerName,
+          companyName: companyName,
+          result: data // 🌟 상세 항목들 (satisfaction, contractAmount 등)
+        };
+
+        // fetch로 백그라운드에서 구글 스크립트에 쏘기
+        fetch(LOG_GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        }).catch(err => console.error('시트 저장 실패:', err));
       };
 
       const config = eventData?.config || {};
