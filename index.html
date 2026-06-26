@@ -3806,6 +3806,22 @@ const handleDeleteCompany = (companyId) => {
     // 4. 메인 허브 라우터 (Main Router)
     // =========================================================================
     function App() {
+      // --- 🔒 새롭게 추가된 비밀번호 인증 상태 ---
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [passwordInput, setPasswordInput] = useState('');
+      const [authError, setAuthError] = useState('');
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        // 설정하신 비밀번호: yeon1234
+        if (passwordInput === 'yeon1234') {
+          setIsAuthenticated(true);
+          setAuthError('');
+        } else {
+          setAuthError('비밀번호가 일치하지 않습니다.');
+        }
+      };
+
       const [eventsDB, setEventsDB] = useState({});
       const [eventId, setEventId] = useState('');
       const [loading, setLoading] = useState(true);
@@ -3864,7 +3880,6 @@ const handleDeleteCompany = (companyId) => {
               Object.keys(data).forEach(evtId => {
                 const ev = data[evtId];
                 if (!ev || typeof ev !== 'object') return; 
-                // 🌟 [수정] 시간대를 억지로 압축하던 norm 함수를 완전 삭제하여 중복 입력을 허용함
                 if (ev.matches) {
                   Object.keys(ev.matches).forEach(day => {
                     Object.keys(ev.matches[day]).forEach(rawTime => {
@@ -3899,11 +3914,13 @@ const handleDeleteCompany = (companyId) => {
             });
         };
 
-        fetchAll(); 
-        const intervalId = setInterval(fetchAll, 5000); 
-
-        return () => clearInterval(intervalId); 
-      }, [eventId]); 
+        // 인증된 상태에서만 데이터를 불러오도록 조건 추가 (선택 사항)
+        if (isAuthenticated) {
+            fetchAll(); 
+            const intervalId = setInterval(fetchAll, 5000); 
+            return () => clearInterval(intervalId); 
+        }
+      }, [eventId, isAuthenticated]); 
 
       const saveEventData = (updatedEvent) => {
         setEventsDB(prevDB => {
@@ -3953,13 +3970,42 @@ const handleDeleteCompany = (companyId) => {
         reader.readAsText(file);
       };
 
+      // ---------------------------------------------------------
+      // 🔒 인증되지 않았을 때 보여주는 화면 (로그인 창)
+      // ---------------------------------------------------------
+      if (!isAuthenticated) {
+        return (
+          <div className="flex flex-col h-screen bg-slate-200 items-center justify-center p-6">
+            <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center bottom-sheet">
+              <div className="w-16 h-16 bg-blue-700 text-white rounded-2xl flex items-center justify-center font-black text-2xl mx-auto mb-4 shadow-lg">B2B</div>
+              <h1 className="text-2xl font-black text-slate-800 mb-2">통합 관리 포털</h1>
+              <p className="text-sm font-bold text-slate-500 mb-6">관리자 비밀번호를 입력해주세요.</p>
+              
+              <form onSubmit={handleLogin} className="space-y-4">
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="비밀번호 입력"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 outline-none text-center font-bold transition"
+                  autoFocus
+                />
+                {authError && <p className="text-red-500 text-xs font-bold">{authError}</p>}
+                <button type="submit" className="w-full py-3 bg-blue-600 text-white font-black rounded-xl shadow-md hover:bg-blue-700 transition active:scale-95">
+                  입장하기
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // --- 이후부터는 기존 로직과 동일 ---
       if (loading) return <div className="flex h-screen items-center justify-center font-bold text-blue-600 text-lg animate-pulse">B2B 통합 포털 로드 중...</div>;
 
       if (!eventId) {
         return (
           <div className="flex flex-col h-screen bg-slate-100 items-center justify-center p-6 overflow-y-auto relative">
-            
-
           <input type="file" accept=".json" ref={fileInputRef} onChange={handleUploadBackup} style={{ display: 'none' }} />
             <div className="absolute top-6 right-6 flex gap-3">
               <button onClick={createNewEvent} className="flex items-center px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-xl shadow-md hover:bg-blue-700 transition">
