@@ -1283,7 +1283,45 @@ const handleDeleteCompany = (companyId) => {
           saveEventData(newEv);
         }
       };
+// 🧹 더미 데이터 (고스트) 청소기
+      const cleanGhostData = () => {
+        if (!confirm("존재하지 않는 기업/바이어와 연결된 더미(고스트) 데이터를 청소하시겠습니까?")) return;
+        
+        const newEv = JSON.parse(JSON.stringify(eventData));
+        let cleanedCount = 0;
 
+        // 1. matches (스케줄 찌꺼기) 청소
+        Object.keys(newEv.matches || {}).forEach(day => {
+          Object.keys(newEv.matches[day] || {}).forEach(time => {
+            Object.entries(newEv.matches[day][time] || {}).forEach(([cId, bId]) => {
+              if (!newEv.companies.find(c => c.id === cId) || !newEv.buyers.find(b => b.id === bId)) {
+                delete newEv.matches[day][time][cId];
+                cleanedCount++;
+              }
+            });
+          });
+        });
+
+        // 2. liveStatus (상태 찌꺼기) 청소
+        Object.keys(newEv.liveStatus || {}).forEach(day => {
+          Object.keys(newEv.liveStatus[day] || {}).forEach(time => {
+            Object.keys(newEv.liveStatus[day][time] || {}).forEach(cId => {
+              if (!newEv.companies.find(c => c.id === cId)) {
+                delete newEv.liveStatus[day][time][cId];
+                cleanedCount++;
+              }
+            });
+          });
+        });
+
+        if (cleanedCount > 0) {
+          newEv.lastModified = Date.now();
+          saveEventData(newEv);
+          alert(`총 ${cleanedCount}개의 더미 데이터를 성공적으로 청소했습니다!`);
+        } else {
+          alert("청소할 더미 데이터가 없습니다. (현재 깔끔한 상태입니다 ✨)");
+        }
+      };
       const handleClearMarks = () => {
         if (confirm('모든 [수정] 마커를 지우시겠습니까?')) {
           const newEv = JSON.parse(JSON.stringify(eventData));
@@ -2350,8 +2388,16 @@ const handleDeleteCompany = (companyId) => {
                       </div>
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
                       <button onClick={handleResetAllMatches} className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-bold rounded shadow-sm hover:bg-red-200 transition whitespace-nowrap flex items-center gap-1">
-                        <IconRotateCcw size={14} /> 스케줄 비우기
+                         <IconRotateCcw size={14} /> 스케줄 비우기
                       </button>
+                      
+                      <div className="w-px h-6 bg-gray-300 mx-1"></div>
+                      
+                      {/* 🌟 여기에 추가: 더미 데이터 청소 버튼 */}
+                      <button onClick={cleanGhostData} className="px-3 py-1.5 bg-slate-800 text-white text-sm font-bold rounded shadow-sm hover:bg-black transition whitespace-nowrap flex items-center gap-1">
+                        🧹 더미 데이터 청소
+                      </button>
+
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
                       <button onClick={() => setIsEditMarkMode(!isEditMarkMode)} className={`px-3 py-1.5 text-sm font-bold rounded shadow-sm transition whitespace-nowrap border ${isEditMarkMode ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}>
                         📝 {isEditMarkMode ? '[수정] 마커 ON' : '[수정] 마커 OFF'}
@@ -2844,53 +2890,66 @@ const handleDeleteCompany = (companyId) => {
                   )}
 
                   {liveSubTab === 'logs' && (
-                      <div className="flex-1 bg-slate-100 border border-gray-200 rounded-2xl overflow-y-auto p-4 sm:p-6 custom-scrollbar">
-                        <table className="w-full text-sm text-center border-collapse">
-                          <thead className="bg-slate-800 text-white sticky top-0 z-10 shadow-sm">
-                            <tr>
-                              <th className="p-3">시간 (사전)</th>
-                              <th className="p-3">국내 기업</th>
-                              <th className="p-3">바이어</th>
-                              <th className="p-3">현재 상태</th>
-                              <th className="p-3">일지 제출 여부</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {timeSlots.map(slot => {
-                              const timeMatches = matches[currentDayIdx]?.[slot.value] || {};
-                              return Object.entries(timeMatches).map(([cId, bId]) => {
-                                const comp = companyMap[cId];
-                                const buyer = buyerMap[bId];
-                                const status = liveStatus[currentDayIdx]?.[slot.value]?.[cId] || 'waiting';
-                                const hasLog = meetingResults[currentDayIdx]?.[slot.value]?.[cId] != null;
-                                
-                                if (!comp || !buyer) return null;
-                                
-                                return (
-                                  <tr key={`${slot.value}-${cId}`} className="border-b bg-white hover:bg-gray-50">
-                                    <td className="p-3 font-bold text-gray-600">{slot.value}</td>
-                                    <td className="p-3 font-bold text-blue-900">{comp.name}</td>
-                                    <td className="p-3 font-bold text-indigo-900">{buyer.company}</td>
-                                    <td className="p-3">
-                                      <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusBadge(status).color}`}>
-                                        {getStatusBadge(status).label}
-                                      </span>
-                                    </td>
-                                    <td className="p-3">
-                                      {hasLog ? (
-                                        <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-xs font-bold">O 제출됨</span>
-                                      ) : (
-                                        <span className="bg-red-50 text-red-500 px-3 py-1 rounded-full text-xs font-bold">X 미제출</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              });
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+  <div className="flex-1 bg-slate-100 border border-gray-200 rounded-2xl overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+    <table className="w-full text-sm text-center border-collapse">
+      <thead className="bg-slate-800 text-white sticky top-0 z-10 shadow-sm">
+        <tr>
+          <th className="p-3">시간 (사전)</th>
+          <th className="p-3">국내 기업</th>
+          <th className="p-3">바이어</th>
+          <th className="p-3">현재 상태</th>
+          <th className="p-3">일지 관리 (보기/삭제)</th> {/* 🌟 헤더 수정 */}
+        </tr>
+      </thead>
+      <tbody>
+        {timeSlots.map(slot => {
+          const timeMatches = matches[currentDayIdx]?.[slot.value] || {};
+          return Object.entries(timeMatches).map(([cId, bId]) => {
+            const comp = companyMap[cId];
+            const buyer = buyerMap[bId];
+            const status = liveStatus[currentDayIdx]?.[slot.value]?.[cId] || 'waiting';
+            const hasLog = meetingResults[currentDayIdx]?.[slot.value]?.[cId] != null;
+            
+            if (!comp || !buyer) return null; // 고스트 데이터 화면 숨김 처리
+            
+            return (
+              <tr key={`${slot.value}-${cId}`} className="border-b bg-white hover:bg-gray-50">
+                <td className="p-3 font-bold text-gray-600">{slot.value}</td>
+                <td className="p-3 font-bold text-blue-900">{comp.name}</td>
+                <td className="p-3 font-bold text-indigo-900">{buyer.company}</td>
+                <td className="p-3">
+                  <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusBadge(status).color}`}>
+                    {getStatusBadge(status).label}
+                  </span>
+                </td>
+                <td className="p-3">
+                  {hasLog ? (
+                    <div className="flex justify-center gap-2">
+                      <button 
+                        onClick={() => openResultModal(currentDayIdx, slot.value, cId)} 
+                        className="bg-teal-50 text-teal-600 border border-teal-200 px-3 py-1 rounded text-xs font-bold hover:bg-teal-100 transition"
+                      >
+                        일지 보기
+                      </button>
+                      <button 
+                        onClick={() => deleteMeetingResultLog(currentDayIdx, slot.value, cId)} 
+                        className="bg-red-50 text-red-500 border border-red-200 px-3 py-1 rounded text-xs font-bold hover:bg-red-100 transition"
+                      >
+                        일지만 삭제
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 font-bold text-xs">-</span>
+                  )}
+                </td>
+              </tr>
+            );
+          });
+        })}
+      </tbody>
+    </table>
+  </div>
+)}
 
                   {liveSubTab === 'onsite' && (
                       <div className="flex-1 bg-orange-50 border border-orange-200 rounded-2xl overflow-y-auto p-4 sm:p-6 custom-scrollbar">
